@@ -46,6 +46,7 @@
       const originalFetch = window.fetch;
 
       let dataUrl = null;
+      let codeUrl = null;
 
       function mergeFilesWithProgress(base, count, onProgress) {
         const requests = [];
@@ -67,7 +68,7 @@
       }
 
       (async () => {
-        let totalParts = 2;
+        let totalParts = 4;
         let completedParts = 0;
 
         function updateProgress() {
@@ -82,9 +83,23 @@
             updateProgress();
           },
         );
+        codeUrl = await mergeFilesWithProgress(
+          "./Build/10MinutesTillDawnWebGL.wasm.code.unityweb",
+          2,
+          () => {
+            completedParts++;
+            updateProgress();
+          },
+        );
         window.fetch = async function (url, ...args) {
           if (url.includes("10MinutesTillDawnWebGL.data.unityweb")) {
             const arrayBuffer = await fetch(dataUrl).then((r) =>
+              r.arrayBuffer(),
+            );
+            return new Response(arrayBuffer);
+          }
+          if (url.includes("10MinutesTillDawnWebGL.wasm.code.unityweb")) {
+            const arrayBuffer = await fetch(codeUrl).then((r) =>
               r.arrayBuffer(),
             );
             return new Response(arrayBuffer);
@@ -111,6 +126,35 @@
           ) {
             const xhr = this;
             fetch(dataUrl)
+              .then((r) => r.arrayBuffer())
+              .then((buffer) => {
+                Object.defineProperty(xhr, "response", {
+                  value: buffer,
+                  writable: true,
+                });
+                Object.defineProperty(xhr, "responseText", {
+                  value: "",
+                  writable: true,
+                });
+                Object.defineProperty(xhr, "status", {
+                  value: 200,
+                  writable: true,
+                });
+                Object.defineProperty(xhr, "readyState", {
+                  value: 4,
+                  writable: true,
+                });
+                if (xhr.onreadystatechange) xhr.onreadystatechange();
+                if (xhr.onload) xhr.onload();
+              });
+            return;
+          }
+          if (
+            this._url &&
+            this._url.endsWith("10MinutesTillDawnWebGL.wasm.code.unityweb")
+          ) {
+            const xhr = this;
+            fetch(codeUrl)
               .then((r) => r.arrayBuffer())
               .then((buffer) => {
                 Object.defineProperty(xhr, "response", {
