@@ -1,48 +1,10 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en-us">
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>10 Minutes Till Dawn</title>
-    <script src="Build/UnityLoader.js"></script>
-    <link rel="icon" href="icon.png">
-    <script>
-      var gameInstance = UnityLoader.instantiate("gameContainer", "Build/10MinutesTillDawnWebGL.json");
-      var scaleToFit;
-      try {
-        scaleToFit = !!JSON.parse("");
-      } catch (e) {
-        scaleToFit = true;
-      }
-
-      function onResize() {
-        var canvas = gameInstance.Module.canvas;
-        var container = gameInstance.container;
-        var w;
-        var h;
-
-        if (scaleToFit) {
-          w = window.innerWidth;
-          h = window.innerHeight;
-
-          var r = 675 / 1200;
-
-          if (w * r > window.innerHeight) {
-            w = Math.min(w, Math.ceil(h / r));
-          }
-          h = Math.floor(w * r);
-        } else {
-          w = 1200;
-          h = 675;
-        }
-
-        container.style.width = canvas.style.width = w + "px";
-        container.style.height = canvas.style.height = h + "px";
-        container.style.top = Math.floor((window.innerHeight - h) / 2) + "px";
-        container.style.left = Math.floor((window.innerWidth - w) / 2) + "px";
-      }
-      window.addEventListener("resize", onResize);
-    </script>
+    <link rel="icon" href="icon.png" />
     <style>
       html,
       body {
@@ -78,7 +40,151 @@
     </style>
   </head>
 
-  <body onload="onResize();">
+  <body>
     <div id="gameContainer" data-pixelated="true"></div>
+    <script>
+      const originalFetch = window.fetch;
+
+      let dataUrl = null;
+
+      function mergeFilesWithProgress(base, count, onProgress) {
+        const requests = [];
+
+        for (let i = 1; i <= count; i++) {
+          requests.push(
+            fetch(base + ".part" + i).then(async (r) => {
+              if (!r.ok) throw new Error("Missing part: " + base + ".part" + i);
+              const buf = await r.arrayBuffer();
+              onProgress();
+              return new Uint8Array(buf);
+            }),
+          );
+        }
+
+        return Promise.all(requests).then((arrays) => {
+          return URL.createObjectURL(new Blob(arrays));
+        });
+      }
+
+      (async () => {
+        let totalParts = 2;
+        let completedParts = 0;
+
+        function updateProgress() {
+          const percent = (completedParts / totalParts) * 100;
+        }
+
+        dataUrl = await mergeFilesWithProgress(
+          "./Build/10MinutesTillDawnWebGL.data.unityweb",
+          2,
+          () => {
+            completedParts++;
+            updateProgress();
+          },
+        );
+        window.fetch = async function (url, ...args) {
+          if (url.includes("10MinutesTillDawnWebGL.data.unityweb")) {
+            const arrayBuffer = await fetch(dataUrl).then((r) =>
+              r.arrayBuffer(),
+            );
+            return new Response(arrayBuffer);
+          }
+          return originalFetch(url, ...args);
+        };
+        const originalXhrOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function (
+          method,
+          url,
+          async = true,
+          user,
+          pass,
+        ) {
+          this._url = url;
+          return originalXhrOpen.call(this, method, url, async, user, pass);
+        };
+
+        const originalXhrSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function (body) {
+          if (
+            this._url &&
+            this._url.endsWith("10MinutesTillDawnWebGL.data.unityweb")
+          ) {
+            const xhr = this;
+            fetch(dataUrl)
+              .then((r) => r.arrayBuffer())
+              .then((buffer) => {
+                Object.defineProperty(xhr, "response", {
+                  value: buffer,
+                  writable: true,
+                });
+                Object.defineProperty(xhr, "responseText", {
+                  value: "",
+                  writable: true,
+                });
+                Object.defineProperty(xhr, "status", {
+                  value: 200,
+                  writable: true,
+                });
+                Object.defineProperty(xhr, "readyState", {
+                  value: 4,
+                  writable: true,
+                });
+                if (xhr.onreadystatechange) xhr.onreadystatechange();
+                if (xhr.onload) xhr.onload();
+              });
+            return;
+          }
+          return originalXhrSend.call(this, body);
+        };
+        const script = document.createElement("script");
+        script.src = "./Build/UnityLoader.js";
+
+        script.onload = () => {
+          var gameInstance = UnityLoader.instantiate(
+            "gameContainer",
+            "./Build/10MinutesTillDawnWebGL.json",
+          );
+          function onResize() {
+            var canvas = gameInstance.Module.canvas;
+            var container = gameInstance.container;
+            var w;
+            var h;
+
+            if (scaleToFit) {
+              w = window.innerWidth;
+              h = window.innerHeight;
+
+              var r = 675 / 1200;
+
+              if (w * r > window.innerHeight) {
+                w = Math.min(w, Math.ceil(h / r));
+              }
+              h = Math.floor(w * r);
+            } else {
+              w = 1200;
+              h = 675;
+            }
+
+            container.style.width = canvas.style.width = w + "px";
+            container.style.height = canvas.style.height = h + "px";
+            container.style.top =
+              Math.floor((window.innerHeight - h) / 2) + "px";
+            container.style.left =
+              Math.floor((window.innerWidth - w) / 2) + "px";
+          }
+          onResize();
+          window.addEventListener("resize", onResize);
+          var scaleToFit;
+          try {
+            scaleToFit = !!JSON.parse("");
+          } catch (e) {
+            scaleToFit = true;
+          }
+        };
+
+        document.body.appendChild(script);
+      })();
+    </script>
+    <script src="Build/UnityLoader.js"></script>
   </body>
 </html>
