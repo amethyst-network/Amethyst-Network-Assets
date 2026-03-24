@@ -139,6 +139,46 @@
 
     <script src="index.js"></script>
     <script>
+      const progressBar = document.getElementById("status-progress");
+
+      let fakeValue = 0;
+      let direction = 1;
+      let fakeInterval;
+      let loadingDone = false;
+
+      function startFakeLoading() {
+        progressBar.style.display = "block";
+        progressBar.max = 100;
+
+        fakeInterval = setInterval(() => {
+          if (loadingDone) return;
+
+          fakeValue += direction * (Math.random() * 2 + 0.5);
+
+          if (fakeValue >= 95) direction = -1;
+          if (fakeValue <= 10) direction = 1;
+
+          progressBar.value = fakeValue;
+        }, 100);
+      }
+
+      function stopFakeLoading() {
+        loadingDone = true;
+        clearInterval(fakeInterval);
+
+        let finish = progressBar.value;
+        const finishInterval = setInterval(() => {
+          finish += 2;
+          progressBar.value = finish;
+
+          if (finish >= 100) {
+            progressBar.value = 100;
+            clearInterval(finishInterval);
+          }
+        }, 30);
+      }
+
+      startFakeLoading();
       const originalFetch = window.fetch;
 
       function mergeFiles(fileParts) {
