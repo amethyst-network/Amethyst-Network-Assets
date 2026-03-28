@@ -1,0 +1,32 @@
+<html>
+  <head>
+    <link rel="icon" type="image/png" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Papa's Pastaria</title>
+    <style>
+      html {
+        background-color: #000;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="ruffle" width="100%" height="100%"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2026.3.28/ruffle.min.js"></script>
+    <script>
+      window.RufflePlayer = window.RufflePlayer || {};
+      window.addEventListener("load", (event) => {
+        const ruffle = window.RufflePlayer.newest();
+        const player = ruffle.createPlayer();
+        const container = document.getElementById("ruffle");
+        player.id = "player";
+        player.style.width = "100%";
+        player.style.height = "100%";
+        player.style.border = "0";
+        player.style.padding = "0";
+        player.style.margin = "0";
+        container.appendChild(player);
+        player.load("papaspastaria.swf");
+      });
+    </script>
+  </body>
+</html>
