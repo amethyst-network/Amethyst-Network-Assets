@@ -9,6 +9,34 @@
     <div id="ruffle" width="100%" height="100%"></div>
     <script src="https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2026.3.28/ruffle.min.js"></script>
     <script>
+      const originalFetch = window.fetch;
+      let requests = [];
+      let loaded = 0;
+      let swfUrl = "";
+      function mergeParts(base, count) {
+        for (let i = 1; i <= count; i++) {
+          requests.push(
+            fetch(base + ".part" + i).then(async (r) => {
+              if (!r.ok) throw new Error("Missing part: " + base + ".part" + i);
+              const buf = await r.arrayBuffer();
+              loaded++;
+              return buf;
+            }),
+          );
+        }
+        return Promise.all(requests).then((buffers) => {
+          return URL.createObjectURL(new Blob(buffers));
+        });
+      }
+
+      swfUrl = mergeParts("tboiwotl-v1.666.swf", 3);
+      async () => {
+        window.fetch = async function (url, ...args) {
+          if (url.endsWith(".swf")) return originalFetch(swfUrl, ...args);
+
+          return originalFetch(url, ...args);
+        };
+      };
       window.RufflePlayer = window.RufflePlayer || {};
       window.addEventListener("load", (event) => {
         const ruffle = window.RufflePlayer.newest();
