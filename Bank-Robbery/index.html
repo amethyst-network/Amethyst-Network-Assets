@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Bank Robbery</title>
+  <link rel="shortcut icon" href="TemplateData/favicon.ico">
+  <link rel="stylesheet" href="TemplateData/style.css">
+  <script>
+(function() {
+  function getConfig() {
+    return window.splitConfig || {};
+  }
+
+  var partProgress = {};
+  var partSizes = {};
+  var progressCallback = null;
+
+  function updateProgress() {
+    var keys = Object.keys(partSizes);
+    if (!keys.length) return;
+    var total = keys.reduce(function(a, k) { return a + (partSizes[k] || 0); }, 0);
+    var loaded = keys.reduce(function(a, k) { return a + (partProgress[k] || 0); }, 0);
+    if (progressCallback && total > 0) progressCallback(loaded / total);
+  }
+
+  function fetchPart(url, key) {
+    return new Promise(function(resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", url, true);
+      xhr.responseType = "arraybuffer";
+      xhr.onprogress = function(e) {
+        if (e.lengthComputable) {
+          partSizes[key] = e.total;
+          partProgress[key] = e.loaded;
+          updateProgress();
+        }
+      };
+      xhr.onload = function() {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          partSizes[key] = xhr.response.byteLength;
+          partProgress[key] = xhr.response.byteLength;
+          updateProgress();
+          resolve(xhr.response);
+        } else {
+          reject(new Error("Part fetch failed: " + url + " (" + xhr.status + ")"));
+        }
+      };
+      xhr.onerror = function() { reject(new Error("Network error: " + url)); };
+      xhr.send();
+    });
+  }
+
+  function mergeBuffers(buffers) {
+    var total = buffers.reduce(function(a, b) { return a + b.byteLength; }, 0);
+    var out = new Uint8Array(total);
+    var offset = 0;
+    for (var i = 0; i < buffers.length; i++) {
+      out.set(new Uint8Array(buffers[i]), offset);
+      offset += buffers[i].byteLength;
+    }
+    return out.buffer;
+  }
+
+  function fetchAllParts(baseUrl, count, keyPrefix) {
+    var promises = [];
+    for (var i = 1; i <= count; i++) {
+      promises.push(fetchPart(baseUrl + ".part" + i, keyPrefix + i));
+    }
+    return Promise.all(promises).then(mergeBuffers);
+  }
+
+  function matchType(url) {
+    if (/BankRobbery\.data\.unityweb(\?|$)/.test(url)) return "data";
+    if (/BankRobbery\.wasm\.unityweb(\?|$)/.test(url)) return "wasm";
+    return null;
+  }
+
+  function getCount(type) {
+    var cfg = getConfig();
+    if (type === "data") return 2;
+    if (type === "wasm") return 0;
+    return 0;
+  }
+
+  function stripQuery(url) { return url.split("?")[0]; }
+
+  var _fetch = window.fetch;
+  window.fetch = function(input, init) {
+    var url = typeof input === "string" ? input : (input instanceof Request ? input.url : String(input));
+    var type = matchType(url);
+    var count = type ? getCount(type) : 0;
+    if (type && count > 0) {
+      return fetchAllParts(stripQuery(url), count, type + "_").then(function(buffer) {
+        return new Response(buffer, {
+          status: 200,
+          headers: { "Content-Type": type === "wasm" ? "application/wasm" : "application/octet-stream" }
+        });
+      });
+    }
+    return _fetch.apply(this, arguments);
+  };
+
+  var _open = XMLHttpRequest.prototype.open;
+  var _send = XMLHttpRequest.prototype.send;
+
+  XMLHttpRequest.prototype.open = function(method, url) {
+    this._patchUrl = url;
+    return _open.apply(this, arguments);
+  };
+
+  XMLHttpRequest.prototype.send = function() {
+    var self = this;
+    var url = this._patchUrl || "";
+    var type = matchType(url);
+    var count = type ? getCount(type) : 0;
+
+    if (type && count > 0) {
+      fetchAllParts(stripQuery(url), count, type + "_xhr_").then(function(buffer) {
+        Object.defineProperty(self, "response",   { get: function() { return buffer; }, configurable: true });
+        Object.defineProperty(self, "status",     { get: function() { return 200; }, configurable: true });
+        Object.defineProperty(self, "readyState", { get: function() { return 4; }, configurable: true });
+        Object.defineProperty(self, "statusText", { get: function() { return "OK"; }, configurable: true });
+
+        self.dispatchEvent(new Event("readystatechange"));
+        if (typeof self.onreadystatechange === "function") self.onreadystatechange();
+
+        var p = new ProgressEvent("progress", { lengthComputable: true, loaded: buffer.byteLength, total: buffer.byteLength });
+        if (typeof self.onprogress === "function") self.onprogress(p);
+        self.dispatchEvent(p);
+
+        var l = new ProgressEvent("load", { lengthComputable: true, loaded: buffer.byteLength, total: buffer.byteLength });
+        if (typeof self.onload === "function") self.onload(l);
+        self.dispatchEvent(l);
+      }).catch(function(err) {
+        console.error("[part-loader]", err);
+        var e = new ProgressEvent("error");
+        if (typeof self.onerror === "function") self.onerror(e);
+        self.dispatchEvent(e);
+      });
+      return;
+    }
+
+    return _send.apply(this, arguments);
+  };
+
+  window.__partLoaderOnProgress = function(cb) { progressCallback = cb; };
+})();
+</script>
+</head>
+
+<body class="dark">
+  <div id="unity-container" class="unity-desktop">
+    <canvas id="unity-canvas"></canvas>
+  </div>
+  <div id="loading-cover" style="display:none;">
+    <div id="unity-loading-bar">
+      <div id="unity-logo"><img src="TemplateData/logo.png"></div>
+      <div id="unity-progress-bar-empty" style="display: none;">
+        <div id="unity-progress-bar-full"></div>
+      </div>
+      <div class="spinner"></div>
+    </div>
+  </div>
+  <div id="unity-fullscreen-button" style="display: none;"></div>
+  <script>
+    const hideFullScreenButton = "1";
+    const buildUrl = "Build";
+    const loaderUrl = buildUrl + "/BankRobbery.loader.js";
+    const config = {
+      dataUrl: buildUrl + "/BankRobbery.data.unityweb",
+      frameworkUrl: buildUrl + "/BankRobbery.framework.js.unityweb",
+      codeUrl: buildUrl + "/BankRobbery.wasm.unityweb",
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: "JustAlien",
+      productName: "BankRobbery",
+      productVersion: "1.0",
+    };
+
+    const container = document.querySelector("#unity-container");
+    const canvas = document.querySelector("#unity-canvas");
+    const loadingCover = document.querySelector("#loading-cover");
+    const progressBarEmpty = document.querySelector("#unity-progress-bar-empty");
+    const progressBarFull = document.querySelector("#unity-progress-bar-full");
+    const fullscreenButton = document.querySelector("#unity-fullscreen-button");
+    const spinner = document.querySelector('.spinner');
+
+    const canFullscreen = (function () {
+      for (const key of [
+        'exitFullscreen',
+        'webkitExitFullscreen',
+        'webkitCancelFullScreen',
+        'mozCancelFullScreen',
+        'msExitFullscreen',
+      ]) {
+        if (key in document) {
+          return true;
+        }
+      }
+      return false;
+    }());
+
+    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+      container.className = "unity-mobile";
+      config.devicePixelRatio = 1;
+    }
+    loadingCover.style.display = "";
+
+    const script = document.createElement("script");
+    script.src = loaderUrl;
+    script.onload = () => {
+      createUnityInstance(canvas, config, (progress) => {
+        spinner.style.display = "none";
+        progressBarEmpty.style.display = "";
+        progressBarFull.style.width = `${100 * progress}%`;
+      }).then((unityInstance) => {
+        loadingCover.style.display = "none";
+        if (canFullscreen) {
+          if (!hideFullScreenButton) {
+            fullscreenButton.style.display = "";
+          }
+          fullscreenButton.onclick = () => {
+            unityInstance.SetFullscreen(1);
+          };
+        }
+      }).catch((message) => {
+        alert(message);
+      });
+    };
+    document.body.appendChild(script);
+  </script>
+
+</body>
+
+</html>
