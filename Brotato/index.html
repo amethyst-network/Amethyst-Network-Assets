@@ -207,7 +207,7 @@
 
       document.getElementById("status").prepend(logo);
 
-      let totalParts = 8 + 2;
+      let totalParts = 13;
       let completedParts = 0;
 
       function updateProgress() {
@@ -215,7 +215,7 @@
         statusProgressInner.style.width = percent + "%";
       }
 
-      pckUrl = await mergeFilesWithProgress("index.pck", 8, () => {
+      pckUrl = await mergeFilesWithProgress("index.pck", 11, () => {
         completedParts++;
         updateProgress();
       });
